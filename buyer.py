@@ -39,6 +39,7 @@ BUY_PNG = 'assets/buy.png'
     # exit if f3 is pressed
 
 Button = namedtuple('Button', 'left top width height')
+repeat = True
 
 ######################################################
 # 
@@ -218,9 +219,14 @@ Once the tool starts, you may press Ctrl + C to force abort.
 ##################################################################
 '''.format(blue_count, mystic_count, skystones)) 
 
-    input('Press enter to exit the program . . .')
-    sys.exit()
+    choice = input('Press enter to exit the program or type "R" to restart the program . . .')
+    if (choice.lower() == 'r'):
+        repeat = True
+    else:
+        repeat = False
+        sys.exit()
             
 
 if __name__ == '__main__':
-    main()
+    while repeat:
+        main()
