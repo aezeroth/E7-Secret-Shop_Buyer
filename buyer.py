@@ -24,7 +24,7 @@ import win32gui, win32con
 ######################################################
 SSHOP_SKYSTONE_COST = 3
 DELAY_LOWER_BOUND = 0.2
-DELAY_UPPER_BOUND = 0.7
+DELAY_UPPER_BOUND = 0.6
 CLICK_COUNTS = [i for i in range(2, 4)]
 
 REFRESH_PNG = 'assets/refresh.png'
@@ -111,19 +111,18 @@ def buyBookmark(bookmark, win_width, win_height):
         BOOKMARK_BUTTON_WIDTH = win_width / 8
         BOOKMARK_BUTTON_HEIGHT = win_height / 20
 
-        bookmark_button = Button(bookmark.x + BOOKMARK_OFFSET_X, bookmark.y + BOOKMARK_OFFSET_Y,
-                                          bookmark.x + BOOKMARK_OFFSET_X + BOOKMARK_BUTTON_WIDTH,
-                                          bookmark.y + BOOKMARK_OFFSET_Y + BOOKMARK_BUTTON_HEIGHT)
+        bookmark_button = Button(bookmark.x + BOOKMARK_OFFSET_X, bookmark.y + BOOKMARK_OFFSET_Y, 
+                                 BOOKMARK_BUTTON_WIDTH, BOOKMARK_BUTTON_HEIGHT)
 
         x, y = getGaussianXY(bookmark_button)
 
         pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(0.2, 0.4))
         delay()
 
-        BUY_X = win_width * 0.50
-        BUY_Y = win_height * 0.6
-        BUY_WIDTH = win_width * 0.14
-        BUY_HEIGHT = win_height * 0.07
+        BUY_X = win_width * 0.458
+        BUY_Y = win_height * 0.694
+        BUY_WIDTH = win_width * 0.195
+        BUY_HEIGHT = win_height * 0.056
 
         buy_button = Button(BUY_X, BUY_Y, BUY_WIDTH, BUY_HEIGHT)
         x, y = getGaussianXY(buy_button)
@@ -146,6 +145,8 @@ def main():
 
     WIDTH, HEIGHT = pyautogui.size()
 
+    keyboard.add_hotkey('f3', lambda: os._exit(os.X_OK))
+
 
     print(''' 
 ##################################################################
@@ -160,7 +161,7 @@ If the tool fails to work, try:
 - Manually taking screenshots of the shop bookmarks similar to the existing ones in /assets
 - Editing the global constants in buyer.py.
 
-Once the tool starts, you may press Ctrl + C to force abort.
+Once the tool starts, you may press F3 to force abort (do not rely on this).
     ''')
 
     skystones_to_spend = int(input('How many skystones would you like to spend on the Secret Shop?\n>> '))
@@ -189,35 +190,46 @@ Once the tool starts, you may press Ctrl + C to force abort.
 
     for skystones in range(0, skystones_to_spend, SSHOP_SKYSTONE_COST):
         findBookmark(WIDTH, HEIGHT)
+        delay()
+        blue_found, mystic_found = False, False
 
-        # search, scroll, then search again
+        # search, scroll, then search again; avoid double counting
         for i in range(2):
-            blue_bookmark = pyautogui.locateCenterOnScreen(BLUE_BOOKMARK_PNG, grayscale=True, confidence=0.6)
 
-            if blue_bookmark:
-                buyBookmark(blue_bookmark, WIDTH, HEIGHT)
-                print('COVENANT bookmark bought after {} skystones'.format(skystones))
-                blue_count += 1
+            if not blue_found:
+                blue_bookmark = pyautogui.locateCenterOnScreen(BLUE_BOOKMARK_PNG, grayscale=True, confidence=0.6)
+                if blue_bookmark:
+                    buyBookmark(blue_bookmark, WIDTH, HEIGHT) 
+                    print('COVENANT bookmark bought after {} skystones'.format(skystones))
+                    blue_count += 1
+                    blue_found = True
             
-            mystic_bookmark = pyautogui.locateCenterOnScreen(MYSTIC_BOOKMARK_PNG, grayscale=True, confidence=0.6)
-
-            if mystic_bookmark:
-                buyBookmark(mystic_bookmark, WIDTH, HEIGHT)
-                print('MYSTIC bookmark bought after {} skystones'.format(skystones))
-                mystic_count += 1
+           
+            if not mystic_found: 
+                mystic_bookmark = pyautogui.locateCenterOnScreen(MYSTIC_BOOKMARK_PNG, grayscale=True, confidence=0.6)
+                if mystic_bookmark:
+                    buyBookmark(mystic_bookmark, WIDTH, HEIGHT)
+                    print('MYSTIC bookmark bought after {} skystones'.format(skystones))
+                    mystic_count += 1
+                    mystic_found = True
             
-            if i == 0: pyautogui.scroll(random.randint(-100, -10))
-        
+            if i == 0: 
+                pyautogui.moveTo(x=random.uniform(WIDTH * 0.66, WIDTH * 0.75), y=random.uniform(HEIGHT * 0.4, HEIGHT * 0.6))
+                pyautogui.scroll(random.randint(-100, -10))
+                time.sleep(random.uniform(0.5, 0.8))
+    
+    skystones += 3
     
     print('''
 ##################################################################
 # 
-#            ESSB HAS COMPLETED AND HAS PURCHASED 
-#            {} COVENANT AND {} MYSTIC BOOKMARKS
-#                       WITH {} SKYSTONES!
+#                ESSB HAS COMPLETED!
+#                {} COVENANT BOOKMARKS ({} Covenant summons)
+#                {} MYSTIC BOOKMARKS ({} Mystic summons)
+#                {} SKYSTONES USED!
 #
 ##################################################################
-'''.format(blue_count, mystic_count, skystones)) 
+'''.format(blue_count * 5, blue_count, mystic_count * 50, mystic_count, skystones)) 
 
     choice = input('Press enter to exit the program or type "R" to restart the program . . .')
     if (choice.lower() == 'r'):
