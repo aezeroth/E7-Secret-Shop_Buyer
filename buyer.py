@@ -1,5 +1,4 @@
 from collections import namedtuple
-from webbrowser import WindowsDefault
 import numpy
 import random
 import os
@@ -11,8 +10,7 @@ import time
 import win32gui, win32con
 
 
-# TODO: refactor into multiple scripts
-# TODO: make scalable to any window size so that maximization is not necessary
+# TODO: catch None pointers whenver script fails (eg. discord notif banner blocks the buy click)
 # TODO: gold constraints?
 # TODO: alternative stop condition on bookmarks purchased?
 
@@ -23,8 +21,8 @@ import win32gui, win32con
 #
 ######################################################
 SSHOP_SKYSTONE_COST = 3
-DELAY_LOWER_BOUND = 0.2
-DELAY_UPPER_BOUND = 0.6
+DELAY_LOWER_BOUND = 0.05
+DELAY_UPPER_BOUND = 0.3
 CLICK_COUNTS = [i for i in range(2, 4)]
 
 REFRESH_PNG = 'assets/refresh.png'
@@ -32,6 +30,12 @@ CONFIRM_PNG = 'assets/confirm.png'
 BLUE_BOOKMARK_PNG = 'assets/covenant_bookmark.png'
 MYSTIC_BOOKMARK_PNG = 'assets/mystic_bookmark.png'
 BUY_PNG = 'assets/buy.png'
+
+STATS = {}
+STATS['COVENANTS'] = 0
+STATS['MYSTICS'] = 0
+STATS['SKYSTONES'] = 0
+
 
     # 1. Set duration of buying
     # 2. Detect bluestacks window
@@ -58,8 +62,8 @@ def getGaussianXY(button):
                     ASSUMES a four-tuple (left, top, width, height) returned by a call to pyautogui.locateOnScreen().
     '''
     # the multiply by 2 is a math trick; (2*left) + width == left + (left + width)
-    x = random.gauss((2 * button.left + button.width) / 2, button.width / 3)
-    y = random.gauss((2 * button.top + button.height) / 2, button.height / 3)
+    x = random.gauss((2 * button.left + button.width) / 2, button.width / 7)
+    y = random.gauss((2 * button.top + button.height) / 2, button.height / 7)
 
     if x < button.left:
         x = button.left
@@ -75,27 +79,17 @@ def getGaussianXY(button):
 
 
 def findBookmark(win_width, win_height):
-    REFRESH_X = win_width * 0.06
-    REFRESH_Y = win_height * 0.91
-    REFRESH_WIDTH = win_width * 0.21
-    REFRESH_HEIGHT = win_height * 0.04
-
-    refreshButton = Button(REFRESH_X, REFRESH_Y, REFRESH_WIDTH, REFRESH_HEIGHT)
+    refreshButton = pyautogui.locateOnScreen(REFRESH_PNG, grayscale=True, confidence=0.6)
     x, y = getGaussianXY(refreshButton)
     delay()
 
-    pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(0.2, 0.4))
+    pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(DELAY_LOWER_BOUND, DELAY_UPPER_BOUND))
     delay()
 
-    CONFIRM_X = win_width * 0.505
-    CONFIRM_Y = win_height * 0.61
-    CONFIRM_WIDTH = win_width * 0.132
-    CONFIRM_HEIGHT = win_height * 0.055
-
-    confirmButton = Button(CONFIRM_X, CONFIRM_Y, CONFIRM_WIDTH, CONFIRM_HEIGHT)
+    confirmButton = pyautogui.locateOnScreen(CONFIRM_PNG, grayscale=True, confidence=0.6)
     x, y = getGaussianXY(confirmButton)
 
-    pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(0.2, 0.4))
+    pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(DELAY_LOWER_BOUND, DELAY_UPPER_BOUND))
     delay()
 
 
@@ -106,32 +100,43 @@ def buyBookmark(bookmark, win_width, win_height):
             A tuple of the bookmark icon XY coordinates
     '''
     if bookmark:
-        BOOKMARK_OFFSET_X = win_width / 2.77
-        BOOKMARK_OFFSET_Y = win_height / 100
-        BOOKMARK_BUTTON_WIDTH = win_width / 8
-        BOOKMARK_BUTTON_HEIGHT = win_height / 20
+        left = bookmark.x + win_width * 0.345 
+        width = win_width * 0.110
+        top = bookmark.y + win_height * 0.0166
+        height = win_height * 0.040
 
-        bookmark_button = Button(bookmark.x + BOOKMARK_OFFSET_X, bookmark.y + BOOKMARK_OFFSET_Y, 
-                                 BOOKMARK_BUTTON_WIDTH, BOOKMARK_BUTTON_HEIGHT)
-
+        bookmark_button = Button(left, top, width, height)
         x, y = getGaussianXY(bookmark_button)
 
-        pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(0.2, 0.4))
+        pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(DELAY_LOWER_BOUND, DELAY_UPPER_BOUND))
         delay()
 
-        BUY_X = win_width * 0.458
-        BUY_Y = win_height * 0.694
-        BUY_WIDTH = win_width * 0.195
-        BUY_HEIGHT = win_height * 0.056
-
-        buy_button = Button(BUY_X, BUY_Y, BUY_WIDTH, BUY_HEIGHT)
+        buy_button = pyautogui.locateOnScreen(BUY_PNG, grayscale=True, confidence=0.6)
         x, y = getGaussianXY(buy_button)
 
-        pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(0.2, 0.4))
+        pyautogui.click(x, y, clicks=random.choice(CLICK_COUNTS), interval=random.uniform(DELAY_LOWER_BOUND, DELAY_UPPER_BOUND))
         delay()
 
 
+def recordStats(stats):
+    # TODO: more stats
+    try:
+        with open('stats.txt', 'r') as fp:
+            for stat in stats:
+                line = fp.readline()
+                if (line != ''):
+                    stats[stat] += int(''.join(filter(str.isdigit, line)))
+    except IOError:
+        print('stats.txt does not exist, creating now . . .')
+    
+    with open('stats.txt', 'w') as fp:
+        for stat in stats:
+            fp.write('{}: {}\n'.format(stat, stats[stat]))
 
+
+def forceExit():
+    recordStats(STATS)
+    os._exit(os.X_OK)
 
 
 ######################################################
@@ -143,10 +148,7 @@ def buyBookmark(bookmark, win_width, win_height):
 
 def main():
 
-    WIDTH, HEIGHT = pyautogui.size()
-
-    keyboard.add_hotkey('f3', lambda: os._exit(os.X_OK))
-
+    keyboard.add_hotkey('f3', forceExit)
 
     print(''' 
 ##################################################################
@@ -156,6 +158,9 @@ def main():
 ##################################################################
 
 Ensure that you are in the Secret Shop interface of the game.
+
+The stats.txt file contains a persistent cumulative record of skystones spent vs. bookmarks purchased 
+over the course of every time this tool is run.
 
 If the tool fails to work, try:
 - Manually taking screenshots of the shop bookmarks similar to the existing ones in /assets
@@ -184,13 +189,18 @@ Once the tool starts, you may press F3 to force abort (do not rely on this).
     # Set active window
     win32gui.SetForegroundWindow(window)
 
-    time.sleep(0.1)
+    window_rect = win32gui.GetWindowRect(window)
+    WIDTH = window_rect[2] - window_rect[0] 
+    HEIGHT = window_rect[3] - window_rect[1]
 
-    blue_count, mystic_count = 0, 0
+    time.sleep(0.1)
 
     for skystones in range(0, skystones_to_spend, SSHOP_SKYSTONE_COST):
         findBookmark(WIDTH, HEIGHT)
-        delay()
+        time.sleep(random.uniform(0.2, 0.3))
+
+        STATS['SKYSTONES'] += SSHOP_SKYSTONE_COST
+
         blue_found, mystic_found = False, False
 
         # search, scroll, then search again; avoid double counting
@@ -201,7 +211,7 @@ Once the tool starts, you may press F3 to force abort (do not rely on this).
                 if blue_bookmark:
                     buyBookmark(blue_bookmark, WIDTH, HEIGHT) 
                     print('COVENANT bookmark bought after {} skystones'.format(skystones))
-                    blue_count += 1
+                    STATS['COVENANTS'] += 5
                     blue_found = True
             
            
@@ -210,16 +220,14 @@ Once the tool starts, you may press F3 to force abort (do not rely on this).
                 if mystic_bookmark:
                     buyBookmark(mystic_bookmark, WIDTH, HEIGHT)
                     print('MYSTIC bookmark bought after {} skystones'.format(skystones))
-                    mystic_count += 1
+                    STATS['MYSTICS'] += 50
                     mystic_found = True
             
             if i == 0: 
-                pyautogui.moveTo(x=random.uniform(WIDTH * 0.66, WIDTH * 0.75), y=random.uniform(HEIGHT * 0.4, HEIGHT * 0.6))
+                pyautogui.moveTo(x=random.uniform(WIDTH * 0.52, WIDTH * 0.75), y=random.uniform(HEIGHT * 0.4, HEIGHT * 0.6))
                 pyautogui.scroll(random.randint(-100, -10))
                 time.sleep(random.uniform(0.5, 0.8))
-    
-    skystones += 3
-    
+
     print('''
 ##################################################################
 # 
@@ -229,7 +237,11 @@ Once the tool starts, you may press F3 to force abort (do not rely on this).
 #                {} SKYSTONES USED!
 #
 ##################################################################
-'''.format(blue_count * 5, blue_count, mystic_count * 50, mystic_count, skystones)) 
+'''.format(STATS['COVENANTS'], int(STATS['COVENANTS'] / 5), 
+           STATS['MYSTICS'],   int(STATS['MYSTICS'] / 50), 
+           STATS['SKYSTONES']))
+
+    recordStats(STATS)
 
     choice = input('Press enter to exit the program or type "R" to restart the program . . .')
     if (choice.lower() == 'r'):
